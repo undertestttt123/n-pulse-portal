@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تسجيل الدخول | N-Pulse-AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js" defer></script>
+
+</head>
+<body>
+<main class="login-wrap">
+  <section class="card login-card">
+    <header class="login-head">
+      <div class="emblem" id="emblem"></div>
+      <h1>بوابة الموظفين | N-Pulse-AI</h1>
+      <p>سجّل دخولك لمتابعة بلاغات المواطنين الخاصة بقسمك</p>
+    </header>
+
+    <div id="error" class="alert alert-error" role="alert" hidden>
+      <span>البريد الإلكتروني أو كلمة المرور غير صحيحة</span>
+      <button type="button" id="close-error" aria-label="إغلاق التنبيه">×</button>
+    </div>
+
+    <form id="login-form" novalidate>
+      <div class="field"><label for="email">البريد الإلكتروني</label>
+        <input class="input ltr" type="email" id="email" autocomplete="username" placeholder="name@npulse.gov" required></div>
+      <div class="field"><label for="password">كلمة المرور</label>
+        <input class="input ltr" type="password" id="password" autocomplete="current-password" placeholder="••••••" required></div>
+      <button class="btn btn-block" type="submit" id="submit">تسجيل الدخول</button>
+    </form>
+
+    <details class="demo">
+      <summary>حسابات تجريبية</summary>
+      <div class="demo-list">
+        <button type="button" class="demo-item" data-email="mohammad@npulse.gov"><b>محمد الخالدي</b><span>الكهرباء والإنارة · mohammad@npulse.gov</span></button>
+        <button type="button" class="demo-item" data-email="sara@npulse.gov"><b>سارة العمري</b><span>الأشغال والطرق · sara@npulse.gov</span></button>
+        <button type="button" class="demo-item" data-email="ali@npulse.gov"><b>علي النعيمي</b><span>النظافة والبيئة · ali@npulse.gov</span></button>
+      </div>
+      <p class="demo-note">اضغط على أي حساب لتعبئة البيانات تلقائياً. كلمة المرور للجميع: 123456</p>
+    </details>
+  </section>
+</main>
+<script>
+// app.js is loaded with `defer`, so wait for DOMContentLoaded before using DataService/UI.
+document.addEventListener('DOMContentLoaded', async () => {
+  const $ = id => document.getElementById(id);
+  $('emblem').innerHTML = UI.emblem;
+
+  if (await DataService.getSession()) { location.replace('dashboard.html'); return; }
+
+  const err = $('error');
+  $('close-error').addEventListener('click', () => err.hidden = true);
+
+  document.querySelectorAll('.demo-item').forEach(b => b.addEventListener('click', () => {
+    $('email').value = b.dataset.email; $('password').value = '123456'; err.hidden = true; $('submit').focus();
+  }));
+
+  $('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $('email').value, password = $('password').value, btn = $('submit');
+    err.hidden = true;
+    UI.setLoading(btn, true);
+    // TODO: Replace with supabase.auth.signInWithPassword() inside DataService.login()
+    const user = (email && password) ? await DataService.login(email, password) : null;
+    if (user) { location.href = 'dashboard.html'; return; }
+    UI.setLoading(btn, false);
+    err.hidden = false; $('password').select();
+  });
+});
+</script>
+</body>
+</html>
