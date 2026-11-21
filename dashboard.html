@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة البلاغات | N-Pulse-AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js" defer></script>
+
+</head>
+<body>
+<header class="navbar" id="navbar"></header>
+<main class="container">
+  <div class="page-title">
+    <h1 id="welcome">بلاغات القسم</h1>
+    <p id="welcome-sub"></p>
+  </div>
+
+  <section class="kpis" aria-label="ملخص البلاغات">
+    <div class="card kpi"><div><div class="l">إجمالي البلاغات</div><div class="n" id="k-total">0</div></div></div>
+    <div class="card kpi amber"><div><div class="l">قيد المعالجة</div><div class="n" id="k-open">0</div></div></div>
+    <div class="card kpi green"><div><div class="l">تم الحل</div><div class="n" id="k-done">0</div></div></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="filters" id="filters" role="group" aria-label="تصفية حسب الحالة">
+      <button class="chip active" data-f="all">الكل <small id="c-all">0</small></button>
+      <button class="chip" data-f="Pending">قيد الانتظار <small id="c-Pending">0</small></button>
+      <button class="chip" data-f="In Progress">قيد المعالجة <small id="c-In Progress">0</small></button>
+      <button class="chip" data-f="Resolved">تم الحل <small id="c-Resolved">0</small></button>
+    </div>
+    <label class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input class="input ltr" id="search" type="search" placeholder="بحث برقم التتبع" aria-label="بحث برقم التتبع">
+    </label>
+  </div>
+
+  <div class="card table-card">
+    <table>
+      <thead><tr><th>رقم التتبع</th><th>نوع البلاغ</th><th>الملخص الذكي</th><th>الأولوية</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden>لا توجد بلاغات مطابقة. جرّب تغيير التصفية أو رقم التتبع.</div>
+  </div>
+</main>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const user = await UI.requireSession();
+  if (!user) return;
+  UI.renderNavbar(user);
+  const $ = id => document.getElementById(id);
+  $('welcome').textContent = 'مرحباً، ' + user.name;
+  $('welcome-sub').textContent = 'بلاغات ' + user.department;
+
+  // Strict department filtering: only this employee's department is ever requested.
+  const all = await DataService.getReportsByDepartment(user.department);
+  let filter = 'all', query = '';
+  const count = s => all.filter(r => r.status === s).length;
+
+  $('k-total').textContent = all.length;
+  $('k-open').textContent = all.length - count('Resolved');
+  $('k-done').textContent = count('Resolved');
+  $('c-all').textContent = all.length;
+  ['Pending', 'In Progress', 'Resolved'].forEach(s => $('c-' + s).textContent = count(s));
+
+  function render() {
+    const q = query.trim().toLowerCase();
+    const list = all.filter(r => (filter === 'all' || r.status === filter) && r.tracking_id.toLowerCase().includes(q));
+    $('rows').innerHTML = list.map(r => `
+      <tr>
+        <td data-label="رقم التتبع" class="trk">${UI.esc(r.tracking_id)}</td>
+        <td data-label="نوع البلاغ">${UI.esc(r.issue_type)}</td>
+        <td data-label="الملخص الذكي" class="summary" title="${UI.esc(r.ai_summary)}">${UI.esc(r.ai_summary)}</td>
+        <td data-label="الأولوية">${UI.priorityBadge(r.priority)}</td>
+        <td data-label="الحالة">${UI.statusBadge(r.status)}</td>
+        <td data-label="الإجراء"><a class="btn btn-sm" href="report-details.html?id=${encodeURIComponent(r.id)}">عرض التفاصيل</a></td>
+      </tr>`).join('');
+    $('empty').hidden = list.length > 0;
+  }
+
+  $('filters').addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    filter = b.dataset.f;
+    document.querySelectorAll('#filters .chip').forEach(x => x.classList.toggle('active', x === b));
+    render();
+  });
+  $('search').addEventListener('input', e => { query = e.target.value; render(); });
+  render();
+});
+</script>
+</body>
+</html>

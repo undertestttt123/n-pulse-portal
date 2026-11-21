@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تفاصيل البلاغ | N-Pulse-AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js" defer></script>
+
+</head>
+<body>
+<header class="navbar" id="navbar"></header>
+<main class="container">
+  <nav class="crumbs" aria-label="مسار التنقل">
+    <a href="dashboard.html">← العودة إلى البلاغات</a><span aria-hidden="true">/</span><span id="crumb-trk">تفاصيل البلاغ</span>
+  </nav>
+  <div class="page-head" id="head" hidden><h1 id="trk"></h1><span id="status-badge"></span></div>
+
+  <div class="grid2" id="content" hidden>
+    <section class="card" aria-label="بيانات البلاغ">
+      <h2>بيانات البلاغ</h2>
+      <dl class="meta">
+        <div><dt>اسم المواطن</dt><dd id="d-name"></dd></div>
+        <div><dt>رقم الهاتف</dt><dd class="ltr num" id="d-phone" style="text-align:right"></dd></div>
+        <div><dt>البريد الإلكتروني</dt><dd class="ltr" id="d-email" style="text-align:right"></dd></div>
+        <div><dt>تاريخ التقديم</dt><dd id="d-date"></dd></div>
+        <div class="wide"><dt>القسم</dt><dd id="d-dept"></dd></div>
+      </dl>
+      <div class="label">الملخص الذكي</div>
+      <p class="summary-box" id="d-summary"></p>
+      <div class="label">صورة المواطن</div>
+      <div class="photo" id="photo"></div>
+    </section>
+
+    <section class="card action-card" aria-label="إجراء الموظف">
+      <h2>الإجراء المطلوب</h2>
+      <form id="update-form" novalidate>
+        <div class="field"><label for="status">الحالة الجديدة</label>
+          <select id="status">
+            <option value="Pending">قيد الانتظار</option>
+            <option value="In Progress">قيد المعالجة</option>
+            <option value="Resolved">تم الحل</option>
+          </select></div>
+        <div class="field"><label for="reply">الرد الرسمي للموظف</label>
+          <textarea id="reply" maxlength="800" aria-describedby="reply-hint" placeholder="اكتب الرد الرسمي الذي سيصل إلى المواطن"></textarea>
+          <div class="hint" id="reply-hint"><span id="reply-err" class="err" role="alert"></span><span class="num" id="reply-count">0 / 800</span></div></div>
+        <button class="btn btn-block" type="submit" id="save">حفظ التحديث وإرسال الرد للمواطن</button>
+      </form>
+    </section>
+  </div>
+  <div class="card notfound" id="not-found" hidden>البلاغ غير موجود أو لا يتبع قسمك.</div>
+</main>
+<div class="lightbox" id="lightbox" role="dialog" aria-label="عرض الصورة"><button type="button" aria-label="إغلاق">×</button><img alt="صورة البلاغ بحجم كامل" id="lightbox-img"></div>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const user = await UI.requireSession();
+  if (!user) return;
+  UI.renderNavbar(user);
+  const $ = id => document.getElementById(id);
+
+  const id = new URLSearchParams(location.search).get('id');
+  // Department check: reports of other departments resolve to null.
+  let report = id ? await DataService.getReportById(id, user.department) : null;
+  if (!report) { $('not-found').hidden = false; return; }
+
+  function fill() {
+    $('crumb-trk').textContent = report.tracking_id;
+    $('trk').textContent = report.tracking_id;
+    $('status-badge').innerHTML = UI.statusBadge(report.status);
+    $('d-name').textContent = report.citizen_name;
+    $('d-phone').textContent = report.phone;
+    $('d-email').textContent = report.email;
+    $('d-date').textContent = UI.formatDate(report.submitted_at);
+    $('d-dept').textContent = report.department;
+    $('d-summary').textContent = report.ai_summary;
+    $('status').value = report.status;
+    $('reply').value = report.employee_reply || '';
+    count();
+  }
+  const count = () => $('reply-count').textContent = $('reply').value.length + ' / 800';
+  fill();
+  $('head').hidden = false; $('content').hidden = false;
+
+  // Photo with placeholder fallback + lightbox
+  const photo = $('photo');
+  const noPhoto = () => { photo.className = 'photo none'; photo.replaceChildren(document.createTextNode('لا توجد صورة مرفقة بهذا البلاغ')); };
+  const closeBox = () => $('lightbox').classList.remove('open');
+  if (report.image_url) {
+    const img = new Image(); img.alt = 'صورة البلاغ المرفقة من المواطن'; img.src = report.image_url; img.onerror = noPhoto;
+    photo.appendChild(img);
+    photo.setAttribute('role', 'button'); photo.tabIndex = 0; photo.setAttribute('aria-label', 'تكبير الصورة');
+    const open = () => { $('lightbox-img').src = report.image_url; $('lightbox').classList.add('open'); };
+    photo.addEventListener('click', open);
+    photo.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  } else noPhoto();
+  $('lightbox').addEventListener('click', closeBox);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBox(); });
+
+  // Reply validation
+  const reply = $('reply');
+  function validate() {
+    const len = reply.value.trim().length;
+    const msg = len === 0 ? 'الرد الرسمي مطلوب قبل الحفظ.' : len < 10 ? 'اكتب رداً لا يقل عن 10 أحرف.' : '';
+    $('reply-err').textContent = msg; reply.classList.toggle('invalid', !!msg);
+    reply.setAttribute('aria-invalid', !!msg);
+    return !msg;
+  }
+  reply.addEventListener('input', () => { count(); if (reply.classList.contains('invalid')) validate(); });
+
+  $('update-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!validate()) { reply.focus(); return; }
+    const btn = $('save');
+    UI.setLoading(btn, true);
+    // TODO: Update Supabase & trigger n8n webhook (both belong inside DataService.updateReport()).
+    const updated = await DataService.updateReport(report.id, user.department, { status: $('status').value, employee_reply: reply.value.trim() });
+    UI.setLoading(btn, false);
+    if (!updated) { UI.toast('تعذّر حفظ التحديث، حاول مرة أخرى', 'error'); return; }
+    report = updated; fill();
+    UI.toast('تم حفظ التحديث وإرسال الرد إلى المواطن');
+  });
+});
+</script>
+</body>
+</html>
