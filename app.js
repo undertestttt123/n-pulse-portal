@@ -4,16 +4,18 @@
  * ===================================================================== */
 
 const SUPABASE_URL = 'https://jsnxswhycajkypmtoonk.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_a1Wy6_8tyTydPkcijKQYpQ_2650iOqk';
+const SUPABASE_ANON_KEY = 'sb_publishable_a1Wy6_8tyTydPkcijKQpQ_2650iOqk';
 const STORAGE_BUCKET = 'report-images';
 
-// مهم: استبدلي الرابط برابط Supabase Edge Function الحقيقي
-const SUPABASE_FUNCTION_URL = 'https://jsnxswhycajkypmtoonk.supabase.co/functions/v1/notify-report-update';
+const SUPABASE_FUNCTION_URL =
+  'https://jsnxswhycajkypmtoonk.supabase.co/functions/v1/notify-report-update';
 
 const sb = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_ANON_KEY
 );
+
+/* ---------------- Constants ---------------- */
 
 const STATUS_LABELS = {
   'Pending': 'قيد الانتظار',
@@ -243,80 +245,25 @@ const DataService = {
     return normalizeReport(data, deptName || '');
   },
 
-  
-async updateReport(id, department, { status, employee_reply }) {
-  const session = await this.getSession();
+  /* ---------------- Update Report + Notification ---------------- */
 
-  if (!session) return null;
+  async updateReport(id, department, { status, employee_reply }) {
+    const session = await this.getSession();
 
-  const deptId = session.department_id;
-  const deptName = typeof department === 'string'
-    ? department
-    : session.department;
+    if (!session) return null;
 
-  const payload = {
-    status,
-    employee_reply,
-    updated_at: new Date().toISOString(),
-  };
+    const deptId = session.department_id;
 
-  let query = sb.from('reports').update(payload).eq('id', id);
+    const deptName =
+      typeof department === 'string'
+        ? department
+        : session.department;
 
-  if (deptId !== null && deptId !== undefined) {
-    query = query.eq('department_id', deptId);
-  } else if (deptName) {
-    query = query.eq('department', deptName);
-  }
-
-  const { data, error } = await query.select('*').maybeSingle();
-
-  if (error || !data) {
-    console.error('Report update failed:', error);
-    return null;
-  }
-
-  const updated = normalizeReport(data, deptName || '');
-
-  try {
-    const { data: authData, error: authError } =
-      await sb.auth.getSession();
-
-    if (authError) throw authError;
-
-    const accessToken = authData?.session?.access_token;
-
-    if (!accessToken) {
-      throw new Error('Employee session token not found');
-    }
-
-    const response = await fetch(SUPABASE_FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-        'apikey': SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({
-        report_id: updated.id,
-        tracking_id: updated.tracking_id,
-        status: updated.status,
-        employee_reply: updated.employee_reply,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Notification failed:', response.status, errorText);
-    } else {
-      console.log('Notification request sent successfully');
-    }
-
-  } catch (err) {
-    console.error('Notification error:', err);
-  }
-
-  return updated;
-},
+    const payload = {
+      status,
+      employee_reply,
+      updated_at: new Date().toISOString()
+    };
 
     // أولاً: تحديث البلاغ في Supabase
     let query = sb
@@ -343,13 +290,6 @@ async updateReport(id, department, { status, employee_reply }) {
 
     // ثانياً: إرسال إشعار إلى Supabase Edge Function
     try {
-      if (
-        !SUPABASE_FUNCTION_URL ||
-        SUPABASE_FUNCTION_URL === 'ضعي_هنا_Function_URL'
-      ) {
-        throw new Error('Supabase Function URL is not configured');
-      }
-
       const { data: authData, error: authError } =
         await sb.auth.getSession();
 
@@ -386,11 +326,9 @@ async updateReport(id, department, { status, employee_reply }) {
           response.status,
           errorText
         );
-
-        throw new Error('Notification request failed');
+      } else {
+        console.log('Notification request sent successfully');
       }
-
-      console.log('Notification request sent successfully');
 
     } catch (err) {
       console.error('Notification error:', err);
@@ -514,3 +452,4 @@ const UI = {
   }
 
 };
+
