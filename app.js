@@ -243,23 +243,80 @@ const DataService = {
     return normalizeReport(data, deptName || '');
   },
 
-  async updateReport(id, department, { status, employee_reply }) {
-    const session = await this.getSession();
+  
+async updateReport(id, department, { status, employee_reply }) {
+  const session = await this.getSession();
 
-    if (!session) return null;
+  if (!session) return null;
 
-    const deptId = session.department_id;
+  const deptId = session.department_id;
+  const deptName = typeof department === 'string'
+    ? department
+    : session.department;
 
-    const deptName =
-      typeof department === 'string'
-        ? department
-        : session.department;
+  const payload = {
+    status,
+    employee_reply,
+    updated_at: new Date().toISOString(),
+  };
 
-    const payload = {
-      status,
-      employee_reply,
-      updated_at: new Date().toISOString()
-    };
+  let query = sb.from('reports').update(payload).eq('id', id);
+
+  if (deptId !== null && deptId !== undefined) {
+    query = query.eq('department_id', deptId);
+  } else if (deptName) {
+    query = query.eq('department', deptName);
+  }
+
+  const { data, error } = await query.select('*').maybeSingle();
+
+  if (error || !data) {
+    console.error('Report update failed:', error);
+    return null;
+  }
+
+  const updated = normalizeReport(data, deptName || '');
+
+  try {
+    const { data: authData, error: authError } =
+      await sb.auth.getSession();
+
+    if (authError) throw authError;
+
+    const accessToken = authData?.session?.access_token;
+
+    if (!accessToken) {
+      throw new Error('Employee session token not found');
+    }
+
+    const response = await fetch(SUPABASE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        report_id: updated.id,
+        tracking_id: updated.tracking_id,
+        status: updated.status,
+        employee_reply: updated.employee_reply,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Notification failed:', response.status, errorText);
+    } else {
+      console.log('Notification request sent successfully');
+    }
+
+  } catch (err) {
+    console.error('Notification error:', err);
+  }
+
+  return updated;
+},
 
     // أولاً: تحديث البلاغ في Supabase
     let query = sb
