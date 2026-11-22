@@ -4,7 +4,7 @@
  * ===================================================================== */
 
 const SUPABASE_URL = 'https://jsnxswhycajkypmtoonk.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_a1Wy6_8tyTydPkcijKQpQ_2650iOqk';
+const SUPABASE_ANON_KEY = 'sb_publishable_a1Wy6_8tyTydPkcijKQYpQ_2650iOqk';
 const STORAGE_BUCKET = 'report-images';
 
 const SUPABASE_FUNCTION_URL =
