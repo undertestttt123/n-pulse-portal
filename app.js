@@ -249,88 +249,57 @@ const DataService = {
 
   async updateReport(id, department, { status, employee_reply }) {
     const session = await this.getSession();
-
     if (!session) return null;
 
-    const deptId = session.department_id;
+    const allowedStatuses = ['Pending', 'In Progress', 'Resolved'];
+    const cleanReply = String(employee_reply || '').trim();
 
-    const deptName =
-      typeof department === 'string'
-        ? department
-        : session.department;
-
-    const payload = {
-      status,
-      employee_reply,
-      updated_at: new Date().toISOString()
-    };
-
-    // أولاً: تحديث البلاغ في Supabase
-    let query = sb
-      .from('reports')
-      .update(payload)
-      .eq('id', id);
-
-    if (deptId !== null && deptId !== undefined) {
-      query = query.eq('department_id', deptId);
-    } else if (deptName) {
-      query = query.eq('department', deptName);
-    }
-
-    const { data, error } = await query
-      .select('*')
-      .maybeSingle();
-
-    if (error || !data) {
-      console.error('Report update failed:', error);
+    if (!allowedStatuses.includes(status) || cleanReply.length < 10 || cleanReply.length > 800) {
+      console.error('Invalid report update payload');
       return null;
     }
 
-    const updated = normalizeReport(data, deptName || '');
+    // Read the report only to obtain its tracking ID; n8n performs the update.
+    const currentReport = await this.getReportById(id, department);
+    if (!currentReport?.tracking_id) {
+      console.error('Report not found in the employee department');
+      return null;
+    }
 
-    // ثانياً: إرسال إشعار إلى Supabase Edge Function
     try {
-      const { data: authData, error: authError } =
-        await sb.auth.getSession();
-
-      if (authError) {
-        throw authError;
-      }
+      const { data: authData, error: authError } = await sb.auth.getSession();
+      if (authError) throw authError;
 
       const accessToken = authData?.session?.access_token;
+      if (!accessToken) throw new Error('Employee session token not found');
 
-      if (!accessToken) {
-        throw new Error('Employee session token not found');
-      }
-
-     const response = await fetch(SUPABASE_FUNCTION_URL, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${accessToken}`
-  },
-  body: JSON.stringify({
-    tracking_id: updated.tracking_id
-  })
-});
+      const response = await fetch(SUPABASE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          tracking_id: currentReport.tracking_id,
+          status,
+          employee_reply: cleanReply
+        })
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
-
-        console.error(
-          'Notification failed:',
-          response.status,
-          errorText
-        );
-      } else {
-        console.log('Notification request sent successfully');
+        throw new Error(`n8n webhook failed (${response.status}): ${errorText}`);
       }
 
-    } catch (err) {
-      console.error('Notification error:', err);
-    }
+      // n8n updates Supabase. Re-read the row so the UI shows persisted values.
+      const updated = await this.getReportById(id, department);
+      if (!updated) throw new Error('Update succeeded but refreshed report could not be read');
+      return updated;
 
-    return updated;
+    } catch (err) {
+      console.error('Report update via n8n failed:', err);
+      return null;
+    }
   }
 
 };
