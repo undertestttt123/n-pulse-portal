@@ -8,7 +8,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const STORAGE_BUCKET = 'report-images';
 
 const SUPABASE_FUNCTION_URL =
-  'https://jsnxswhycajkypmtoonk.supabase.co/functions/v1/notify-report-update';
+  'https://sura209.app.n8n.cloud/webhook/employee-report-update';
 
 const sb = window.supabase.createClient(
   SUPABASE_URL,
