@@ -1,4 +1,3 @@
-
 /* =====================================================================
  * N-Pulse-AI — app.js (Supabase + Edge Function Connected)
  * ===================================================================== */
@@ -280,6 +279,7 @@ const DataService = {
           'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
+          event: 'employee_report_update',
           tracking_id: currentReport.tracking_id,
           status,
           employee_reply: cleanReply
@@ -417,4 +417,56 @@ const UI = {
   }
 
 };
+
+/* ---------------- Website Open Event -> n8n ---------------- */
+
+async function notifyWebsiteOpened() {
+  try {
+    // Include the signed-in user's token when available.
+    // The webhook is still called on the login page if no session exists.
+    const { data: authData, error: authError } = await sb.auth.getSession();
+
+    if (authError) {
+      console.warn('Could not read Supabase session:', authError);
+    }
+
+    const session = authData?.session;
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+
+    const response = await fetch(SUPABASE_FUNCTION_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        event: 'page_opened',
+        page_url: window.location.href,
+        page_title: document.title,
+        user_id: session?.user?.id || null,
+        email: session?.user?.email || null,
+        timestamp: new Date().toISOString()
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Website-open webhook failed (${response.status}): ${errorText}`);
+    }
+
+    console.log('Website-open event sent to n8n successfully.');
+  } catch (err) {
+    console.error('Failed to send website-open event to n8n:', err);
+  }
+}
+
+// Run once whenever a page using app.js is opened.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', notifyWebsiteOpened, { once: true });
+} else {
+  notifyWebsiteOpened();
+}
 
