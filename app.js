@@ -303,20 +303,16 @@ const DataService = {
         throw new Error('Employee session token not found');
       }
 
-      const response = await fetch(SUPABASE_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'apikey': SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({
-          report_id: updated.id,
-          tracking_id: updated.tracking_id,
-          status: updated.status,
-          employee_reply: updated.employee_reply
-        })
-      });
+     const response = await fetch(SUPABASE_FUNCTION_URL, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`
+  },
+  body: JSON.stringify({
+    tracking_id: updated.tracking_id
+  })
+});
 
       if (!response.ok) {
         const errorText = await response.text();
