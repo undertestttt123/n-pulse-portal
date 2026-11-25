@@ -84,25 +84,16 @@ function normalizeReport(row, fallbackDepartmentName = '') {
 }
 
 async function getEmployeeProfileByAuthId(authUserId, fallbackEmail = '') {
-  let { data: emp, error } = await sb
+  const { data: emp, error } = await sb
     .from('employees')
     .select('*, departments(*)')
     .eq('auth_user_id', authUserId)
     .maybeSingle();
 
-  // Fallback إذا كان اسم عمود المستخدم user_id
-  if (!emp && !error) {
-    const resByUserId = await sb
-      .from('employees')
-      .select('*, departments(*)')
-      .eq('user_id', authUserId)
-      .maybeSingle();
-
-    emp = resByUserId.data;
-    error = resByUserId.error;
+  if (error || !emp) {
+    console.error('Employee profile lookup failed:', error);
+    return null;
   }
-
-  if (error || !emp) return null;
 
   let departmentName =
     emp.department ||
@@ -131,7 +122,7 @@ async function getEmployeeProfileByAuthId(authUserId, fallbackEmail = '') {
 
   return {
     id: emp.id,
-    auth_user_id: emp.auth_user_id || emp.user_id || authUserId,
+    auth_user_id: emp.auth_user_id || authUserId,
     name: emp.full_name || emp.name || fallbackEmail,
     email: emp.email || fallbackEmail,
     department: departmentName,
@@ -155,7 +146,12 @@ const DataService = {
       password
     });
 
-    if (error || !data?.user) return null;
+    if (error) {
+      console.error('Supabase login failed:', error);
+      return null;
+    }
+
+    if (!data?.user) return null;
 
     const profile = await getEmployeeProfileByAuthId(
       data.user.id,
@@ -254,24 +250,33 @@ const DataService = {
     const allowedStatuses = ['Pending', 'In Progress', 'Resolved'];
     const cleanReply = String(employee_reply || '').trim();
 
-    if (!allowedStatuses.includes(status) || cleanReply.length < 10 || cleanReply.length > 800) {
+    if (
+      !allowedStatuses.includes(status) ||
+      cleanReply.length < 10 ||
+      cleanReply.length > 800
+    ) {
       console.error('Invalid report update payload');
       return null;
     }
 
-    // Read the report only to obtain its tracking ID; n8n performs the update.
     const currentReport = await this.getReportById(id, department);
+
     if (!currentReport?.tracking_id) {
       console.error('Report not found in the employee department');
       return null;
     }
 
     try {
-      const { data: authData, error: authError } = await sb.auth.getSession();
+      const { data: authData, error: authError } =
+        await sb.auth.getSession();
+
       if (authError) throw authError;
 
       const accessToken = authData?.session?.access_token;
-      if (!accessToken) throw new Error('Employee session token not found');
+
+      if (!accessToken) {
+        throw new Error('Employee session token not found');
+      }
 
       const response = await fetch(SUPABASE_FUNCTION_URL, {
         method: 'POST',
@@ -289,12 +294,19 @@ const DataService = {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`n8n webhook failed (${response.status}): ${errorText}`);
+        throw new Error(
+          `n8n webhook failed (${response.status}): ${errorText}`
+        );
       }
 
-      // n8n updates Supabase. Re-read the row so the UI shows persisted values.
       const updated = await this.getReportById(id, department);
-      if (!updated) throw new Error('Update succeeded but refreshed report could not be read');
+
+      if (!updated) {
+        throw new Error(
+          'Update succeeded but refreshed report could not be read'
+        );
+      }
+
       return updated;
 
     } catch (err) {
@@ -328,7 +340,7 @@ const UI = {
   },
 
   priorityBadge: p =>
-    `<span class="badge ${PRIORITY_CLASS[p]}">${PRIORITY_LABELS[p] || p}</span>`,
+    `<span class="badge ${PRIORITY_CLASS[p] || ''}">${PRIORITY_LABELS[p] || p || ''}</span>`,
 
   formatDate: iso =>
     new Date(iso).toLocaleString('ar-JO-u-nu-latn', {
@@ -421,57 +433,3 @@ const UI = {
   }
 
 };
-
-/* ---------------- Website Open Event -> n8n ---------------- */
-
-async function notifyWebsiteOpened() {
-  try {
-    // Include the signed-in user's token when available.
-    // The webhook is still called on the login page if no session exists.
-    const { data: authData, error: authError } = await sb.auth.getSession();
-
-    if (authError) {
-      console.warn('Could not read Supabase session:', authError);
-    }
-
-    const session = authData?.session;
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-
-    if (session?.access_token) {
-      headers.Authorization = `Bearer ${session.access_token}`;
-    }
-
-    const response = await fetch(SUPABASE_FUNCTION_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        event: 'page_opened',
-        page_url: window.location.href,
-        page_title: document.title,
-        user_id: session?.user?.id || null,
-        email: session?.user?.email || null,
-        timestamp: new Date().toISOString()
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Website-open webhook failed (${response.status}): ${errorText}`);
-    }
-
-    console.log('Website-open event sent to n8n successfully.');
-  } catch (err) {
-    console.error('Failed to send website-open event to n8n:', err);
-  }
-}
-
-// Run once whenever a page using app.js is opened.
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', notifyWebsiteOpened, { once: true });
-} else {
-  notifyWebsiteOpened();
-}
-
-  
