@@ -4,7 +4,7 @@
  * ===================================================================== */
 
 const SUPABASE_URL = 'https://jsnxswhycajkypmtoonk.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzbnhzd2h5Y2Fqa3lwbXRvb25rIiwicm9sZSI6MTc5NTE5ODY3MCwiZXhwIjoyMTEwNzc0NjcwfQ.XuXtBXhx2YtatPdCUfNltaFdwzmPPOkEM3iUCUs6_b0';
+const SUPABASE_ANON_KEY = 'sb_publishable_a1Wy6_8tyTydPkcijKQYpQ_2650iOqk';
 const STORAGE_BUCKET = 'report-images';
 
 const SUPABASE_FUNCTION_URL =
