@@ -1,9 +1,10 @@
+
 /* =====================================================================
  * N-Pulse-AI — app.js (Supabase + Edge Function Connected)
  * ===================================================================== */
 
 const SUPABASE_URL = 'https://jsnxswhycajkypmtoonk.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impzbnhzd2h5Y2Fqa3lwbXRvb25rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUxOTg2NzAsImV4cCI6MjExMDc3NDY3MH0.XuXtBXhx2YtatPdCUfNltaFdwzmPPOkEM3iUCUs6_b0';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzbnhzd2h5Y2Fqa3lwbXRvb25rIiwicm9sZSI6MTc5NTE5ODY3MCwiZXhwIjoyMTEwNzc0NjcwfQ.XuXtBXhx2YtatPdCUfNltaFdwzmPPOkEM3iUCUs6_b0';
 const STORAGE_BUCKET = 'report-images';
 
 const SUPABASE_FUNCTION_URL =
@@ -17,15 +18,15 @@ const sb = window.supabase.createClient(
 /* ---------------- Constants ---------------- */
 
 const STATUS_LABELS = {
-  'Pending': 'قيد الانتظار',
-  'In Progress': 'قيد المعالجة',
-  'Resolved': 'تم الحل'
+  'pending': 'قيد الانتظار',
+  'in progress': 'قيد المعالجة',
+  'resolved': 'تم الحل'
 };
 
 const STATUS_CLASS = {
-  'Pending': 'badge-pending',
-  'In Progress': 'badge-progress',
-  'Resolved': 'badge-resolved'
+  'pending': 'badge-pending',
+  'in progress': 'badge-progress',
+  'resolved': 'badge-resolved'
 };
 
 const PRIORITY_LABELS = {
@@ -320,8 +321,11 @@ const UI = {
       }[c])
     ),
 
-  statusBadge: s =>
-    `<span class="badge ${STATUS_CLASS[s]}">${STATUS_LABELS[s] || s}</span>`,
+  statusBadge: s => {
+    const status = String(s ?? '').trim().toLowerCase();
+
+    return `<span class="badge ${STATUS_CLASS[status] || ''}">${UI.esc(STATUS_LABELS[status] || s || '')}</span>`;
+  },
 
   priorityBadge: p =>
     `<span class="badge ${PRIORITY_CLASS[p]}">${PRIORITY_LABELS[p] || p}</span>`,
@@ -470,3 +474,4 @@ if (document.readyState === 'loading') {
   notifyWebsiteOpened();
 }
 
+  
